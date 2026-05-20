@@ -1,10 +1,6 @@
 (() => {
     const moduleId = 'TTS-Kanjichange';
     const textarea = document.getElementById('Chat');
-    const logArea = document.getElementById("logArea");
-
-    // main.js で定義した共通のログ配列を使用
-    const spokenLogEntries = window.sharedLogEntries;
 
     let lastValue = '';          // 読み上げ（TTS）判定用の前回値
     let lastConfirmedValue = ''; // ログ表示（確定）判定用の前回値
@@ -13,52 +9,37 @@
     let spaceKeyPressed = false;
     let hasSpokenCurrentComposition = false; // 現在の変換セッションで読み上げ済みか
 
-    /**
-     * 発言ログエリアの描画（インライン形式）
-     */
-    function renderLogEntries() {
-        if (!logArea) return;
-        logArea.innerHTML = "";
-        const wrapper = document.createElement("div");
-        wrapper.className = "log-entry-inline"; 
-        wrapper.style.display = "inline"; 
-        wrapper.style.wordBreak = "break-all";
-        
-        // 共通ログ配列を結合して表示
-        wrapper.textContent = spokenLogEntries.join("");
-        logArea.appendChild(wrapper);
-        
-        // 自動スクロールは main.js が担当
-        logArea.scrollTop = logArea.scrollHeight;
-    }
 
     /**
      * 音声読み上げ
      */
     function speak(text, lang = 'ja') {
         if (!text) return;
+
         console.log('Kanjichange読み上げ:', text, `(言語: ${lang})`);
-        
+
         const utterance = new SpeechSynthesisUtterance(text);
         utterance.lang = (lang === 'en') ? 'en-US' : 'ja-JP';
-        speechSynthesis.speak(utterance);
-    }
 
-    /**
-     * ログ領域を確定・保存する関数
-     */
-    function updateLog(currentValue) {
-        // 前回「確定」した位置からの差分を抽出
-        const prefixLen = getCommonPrefixLength(lastConfirmedValue, currentValue);
-        const confirmedDiff = currentValue.slice(prefixLen);
-        
-        if (confirmedDiff) {
-            console.log('【IME確定】ログに保管:', confirmedDiff);
-            spokenLogEntries.push(confirmedDiff);
-            renderLogEntries();
-        }
-        // 確定した時点の値を保存
-        lastConfirmedValue = currentValue;
+        utterance.onstart = () => {
+            if (typeof window.setReadingHighlightByText === "function") {
+                window.setReadingHighlightByText(text);
+            }
+        };
+
+        utterance.onend = () => {
+            if (typeof window.clearReadingHighlight === "function") {
+                window.clearReadingHighlight();
+            }
+        };
+
+        utterance.onerror = () => {
+            if (typeof window.clearReadingHighlight === "function") {
+                window.clearReadingHighlight();
+            }
+        };
+
+        speechSynthesis.speak(utterance);
     }
 
     function getCommonPrefixLength(a, b) {
@@ -103,57 +84,60 @@
     const keydownHandler = (e) => { 
         if (e.code === 'Space') { 
             spaceKeyPressed = true; 
-        } 
-        // Enterキー（直接入力＝IMEを介さない確定）
-        if (e.key === 'Enter' && !e.isComposing) {
-            updateLog(textarea.value);
-            lastValue = textarea.value;
         }
     };
 
     const inputCompositionHandler = (e) => {
         const currentValue = textarea.value;
-
         if (e.type === 'compositionstart') {
             hasSpokenCurrentComposition = false;
             return;
         }
 
-        // --- 【理想の実現】IME確定時にのみログを保管 ---
-        if (e.type === 'compositionend') {
-            console.log('IME確定イベント検知');
-            // 変換なしで確定された場合（Enter一発押しなど）の読み上げ
+    if (e.type === 'compositionend') {
+        console.log('IME確定イベント検知');
+
+        const prefixLen = getCommonPrefixLength(lastConfirmedValue, currentValue);
+        const confirmedText = currentValue.slice(prefixLen);
+
+        if (confirmedText) {
+            window.addSpeechLog(confirmedText);
+
             if (!hasSpokenCurrentComposition) {
-                speakDiff(currentValue);
+                window.addReadingCheckLog(confirmedText);
+                speak(confirmedText, 'ja');
             }
-            // 確定した内容をログに保管
-            updateLog(currentValue);
-            
-            lastValue = currentValue;
-            hasSpokenCurrentComposition = false;
-            return;
         }
+
+        lastConfirmedValue = currentValue;
+        lastValue = currentValue;
+        hasSpokenCurrentComposition = false;
+        return;
+    }
 
         if (e.type === 'input') {
             // 削除時
             if (currentValue.length < lastValue.length) {
-                speakDiff(currentValue);
-                lastConfirmedValue = currentValue; // 削除時はログの基準点も同期
+                lastValue = currentValue;
+                lastConfirmedValue = currentValue;
+                englishBuffer = '';
+                numberBuffer = '';
                 return;
             }
 
             if (e.isComposing) {
                 // 漢字変換（スペースキー）中
                 if (spaceKeyPressed) {
-                    // 読み上げは初回のみ実行
-                    if (!hasSpokenCurrentComposition) {
-                        speakDiff(currentValue);
+                    const prefixLen = getCommonPrefixLength(lastConfirmedValue, currentValue);
+                    const convertedText = currentValue.slice(prefixLen);
+
+                    if (convertedText && !hasSpokenCurrentComposition) {
+                        window.addReadingCheckLog(convertedText);
+                        speak(convertedText, 'ja');
                         hasSpokenCurrentComposition = true;
-                    } else {
-                        // 基準点だけ更新（読み上げはしない）
-                        lastValue = currentValue;
                     }
-                    // ここでは updateLog は呼ばない（確定時まで待つ）
+
+                    lastValue = currentValue;
                     spaceKeyPressed = false;
                 }
             } else {
@@ -172,7 +156,6 @@
         
         lastValue = textarea.value;
         lastConfirmedValue = textarea.value;
-        renderLogEntries();
     }
 
     function cleanup() {

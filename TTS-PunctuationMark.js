@@ -11,17 +11,9 @@
     const punctuationPattern = /[,。、.，．]/;
 
     function renderLogEntries() {
-        if (!logArea) return;
-        logArea.innerHTML = "";
-
-        const wrapper = document.createElement("div");
-        wrapper.className = "log-entry-inline";
-        wrapper.style.display = "inline";
-        wrapper.style.wordBreak = "break-all";
-        wrapper.textContent = window.sharedLogEntries.join("");
-
-        logArea.appendChild(wrapper);
-        logArea.scrollTop = logArea.scrollHeight;
+        if (typeof window.renderSharedLog === "function") {
+            window.renderSharedLog();
+        }
     }
 
     function resetReadingPositionIfNeeded(currentValue) {
@@ -79,18 +71,31 @@
         const utterance = new SpeechSynthesisUtterance(textToPunctuation);
         utterance.lang = "ja-JP";
 
-        window.sharedLogEntries.push(textToPunctuation);
-        renderLogEntries();
+        window.addReadingCheckLog(textToPunctuation);
+        window.addSpeechLog(textToPunctuation);
+
+     if (typeof window.setReadingHighlightByText === "function") {
+        window.setReadingHighlightByText(textToPunctuation);
+    }
 
         lastSpokenIndex += endIndex;
 
         utterance.onend = () => {
-            console.log('PunctuationMark読み上げ完了');
-            scheduleSpeak();
+        console.log('PunctuationMark読み上げ完了');
+
+            if (typeof window.clearReadingHighlight === "function") {
+                window.clearReadingHighlight();
+            }
+                scheduleSpeak();
         };
 
         utterance.onerror = () => {
             console.warn('PunctuationMark読み上げエラー');
+
+            if (typeof window.clearReadingHighlight === "function") {
+                window.clearReadingHighlight();
+            }
+
             scheduleSpeak();
         };
 

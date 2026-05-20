@@ -156,7 +156,6 @@
     // ==========================================
     
     const textarea = document.getElementById('Chat') || document.getElementById('input');
-    const logArea = document.getElementById("logArea");
     if (!textarea) {
         console.error('TTS-1charTextReading.js: textarea element not found.');
         return;
@@ -166,7 +165,6 @@
     const WAIT_TIME = 700; // キューを保管する時間（ミリ秒）例：2000 = 2秒
 
     // --- 状態管理用の変数 ---
-    let lastSpoken = '';
     let lastValue = '';          
     let lastConfirmedValue = ''; 
     let queuedText = '';      // 読み上げ待ちのテキスト（キュー）
@@ -174,21 +172,8 @@
     let isWaiting = false;    // キューの保管中（数秒間の待機中）か
     let waitTimer = null;     // 保管用タイマー
     let composing = false;
-    
-    // 全モード共通のログ配列を使用
-    const spokenLogEntries = window.sharedLogEntries;
-
-    function renderLogEntries() {
-        if (!logArea) return;
-        logArea.innerHTML = "";
-        const wrapper = document.createElement("div");
-        wrapper.className = "log-entry-inline"; 
-        wrapper.style.display = "inline"; 
-        wrapper.style.wordBreak = "break-all";
-        wrapper.textContent = spokenLogEntries.join("");
-        logArea.appendChild(wrapper);
-        // 自動スクロールは main.js の MutationObserver が担当
-    }
+    let hasSpokenCurrentComposition = false;
+    let isSelectingCandidate = false;
 
     function getJapaneseVoice() {
         const voices = window.speechSynthesis.getVoices();
@@ -201,40 +186,50 @@
     function speak(text) {
         text = text.replace(/[^\w\s\u3040-\u309F\u30A0-\u30FF\u4E00-\u9FFF$%&]/g, '');
         if (!text) return;
-        
-        // --- テスト用ログ ---
+
         console.log('1charTextReading読み上げ開始:', text);
+
+        if (typeof window.addReadingCheckLog === "function") {
+            window.addReadingCheckLog(text);
+        }
+
+        if (typeof window.setReadingHighlightByText === "function") {
+            window.setReadingHighlightByText(text);
+        }
 
         const utterance = new SpeechSynthesisUtterance(text);
         const jaVoice = getJapaneseVoice();
         if (jaVoice) utterance.voice = jaVoice;
 
         isSpeaking = true;
-        
+
         utterance.onend = () => {
+            if (typeof window.clearReadingHighlight === "function") {
+                window.clearReadingHighlight();
+            }
+
             isSpeaking = false;
             console.log('1charTextReading読み上げ完了');
 
-            // 読み上げ終了後、キューにテキストがあるか確認
             if (queuedText.trim()) {
-                console.log('キューに残りがあるため引き続き読み上げます');
                 const nextText = queuedText;
-                queuedText = ''; 
-                speak(nextText); // 引き続き読み上げる
+                queuedText = '';
+                speak(nextText);
             } else {
-                // キューが空ならリセット。次の入力はまた「数秒待ち」から始まる
-                console.log('キューが空になりました。状態をリセットします。');
-                isWaiting = false; 
+                isWaiting = false;
             }
         };
 
         utterance.onerror = () => {
+            if (typeof window.clearReadingHighlight === "function") {
+                window.clearReadingHighlight();
+            }
+
             isSpeaking = false;
             isWaiting = false;
         };
 
         window.speechSynthesis.speak(utterance);
-        lastSpoken = text;
     }
 
     /**
@@ -285,43 +280,97 @@
     }
 
     let compositionPrev = '';
-    function handleCompositionStart() { composing = true; compositionPrev = ''; }
+
+    function handleCompositionStart() {
+        composing = true;
+        compositionPrev = '';
+        hasSpokenCurrentComposition = false;
+        isSelectingCandidate = false;
+    }
+
+    const keydownHandler = (e) => {
+        if (e.code === 'Space' && composing) {
+            isSelectingCandidate = true;
+        }
+    };
 
     function handleCompositionUpdate(e) {
         const currentComposition = e.data || '';
+
+        // Spaceキー後、つまり漢字候補選択中は読まない
+        if (isSelectingCandidate) {
+            compositionPrev = currentComposition;
+            return;
+        }
+
         const newText = getChangedText(compositionPrev, currentComposition);
         compositionPrev = currentComposition;
-        if (!newText || newText.length > 2) return;
-        
-        // 入力中の文字を読み上げフローへ（すぐには鳴らず、タイマー制御される）
+
+        if (!newText) return;
+
+        // 通常のかな入力だけ読む
         handleInputText(newText);
+    }
+
+    function handleInputEvent(e) {
+    if (composing) return;
+
+    const currentValue = textarea.value;
+
+    if (currentValue.length < lastValue.length) {
+        lastValue = currentValue;
+        lastConfirmedValue = currentValue;
+        queuedText = '';
+
+        if (waitTimer) {
+            clearTimeout(waitTimer);
+            waitTimer = null;
+        }
+
+        isWaiting = false;
+        return;
+    }
+
+    if (e.type === 'input' && !e.isComposing) {
+        const directDiff = currentValue.slice(
+            getCommonPrefixLength(lastConfirmedValue, currentValue)
+        );
+
+        if (directDiff) {
+
+            // 音声読み上げ確認モード用
+            handleInputText(directDiff);
+
+            // 発言ログモード用（IME確定時点保存）
+            if (typeof window.addSpeechLog === "function") {
+                window.addSpeechLog(directDiff);
+            }
+
+            lastConfirmedValue = currentValue;
+        }
+    }
+
+    lastValue = currentValue;
     }
 
     function handleCompositionEnd() {
         composing = false;
-        const currentValue = textarea.value;
-        const confirmedDiff = currentValue.slice(getCommonPrefixLength(lastConfirmedValue, currentValue));
-        if (confirmedDiff) {
-            spokenLogEntries.push(confirmedDiff);
-            renderLogEntries();
-        }
-        lastConfirmedValue = currentValue;
-        lastValue = currentValue;
-    }
 
-    function handleInputEvent(e) {
-        if (composing) return;
         const currentValue = textarea.value;
-        if (e.type === 'input' && !e.isComposing) {
-            const directDiff = currentValue.slice(getCommonPrefixLength(lastConfirmedValue, currentValue));
-            if (directDiff) {
-                handleInputText(directDiff);
-                spokenLogEntries.push(directDiff);
-                renderLogEntries();
-                lastConfirmedValue = currentValue;
+        const confirmedDiff = currentValue.slice(
+            getCommonPrefixLength(lastConfirmedValue, currentValue)
+        );
+
+        if (confirmedDiff) {
+            if (typeof window.addSpeechLog === "function") {
+                window.addSpeechLog(confirmedDiff);
             }
         }
+
+        lastConfirmedValue = currentValue;
         lastValue = currentValue;
+        hasSpokenCurrentComposition = false;
+        isSelectingCandidate = false;
     }
 
     function init() {
@@ -329,9 +378,9 @@
         textarea.addEventListener('compositionupdate', handleCompositionUpdate);
         textarea.addEventListener('compositionend', handleCompositionEnd);
         textarea.addEventListener('input', handleInputEvent);
+        textarea.addEventListener('keydown', keydownHandler);
         lastValue = textarea.value;
         lastConfirmedValue = textarea.value;
-        renderLogEntries();
     }
 
     function cleanup() {
@@ -339,6 +388,7 @@
         textarea.removeEventListener('compositionupdate', handleCompositionUpdate);
         textarea.removeEventListener('compositionend', handleCompositionEnd);
         textarea.removeEventListener('input', handleInputEvent);
+        textarea.removeEventListener('keydown', keydownHandler);
         if (waitTimer) clearTimeout(waitTimer);
         // sharedLogEntries はリセットしない
     }

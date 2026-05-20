@@ -1,17 +1,120 @@
 // ==========================================
-// 1. 全モード共通のログ保管場所
+// 2種類のログを常に保持
 // ==========================================
-// モードを切り替えても消えないように window オブジェクトに保持します
-if (!window.sharedLogEntries) {
-    window.sharedLogEntries = [];
+
+if (!window.readingCheckLogEntries) {
+    window.readingCheckLogEntries = [];
 }
+
+if (!window.speechLogEntries) {
+    window.speechLogEntries = [];
+}
+
+window.currentLogMode = "readingCheck";
+window.currentReadingRange = null;
+
+window.addReadingCheckLog = function (text) {
+    if (!text) return;
+    window.readingCheckLogEntries.push(text);
+    window.renderSharedLog();
+};
+
+window.addSpeechLog = function (text) {
+    if (!text) return;
+    window.speechLogEntries.push(text);
+    window.renderSharedLog();
+};
+
+window.getCurrentLogText = function () {
+    if (window.currentLogMode === "speechLog") {
+        return window.speechLogEntries.join("");
+    }
+    return window.readingCheckLogEntries.join("");
+};
+
+window.setReadingHighlightByText = function (text) {
+    // 発言ログモードでは絶対に赤色化しない
+    if (window.currentLogMode !== "readingCheck") return;
+
+    const fullText = window.readingCheckLogEntries.join("");
+    const start = fullText.lastIndexOf(text);
+
+    if (start === -1) return;
+
+    window.currentReadingRange = {
+        start,
+        end: start + text.length
+    };
+
+    window.renderSharedLog();
+};
+
+window.clearReadingHighlight = function () {
+    window.currentReadingRange = null;
+    window.renderSharedLog();
+};
+
+window.renderSharedLog = function () {
+    const logArea = document.getElementById("logArea");
+    if (!logArea) return;
+
+    const fullText = window.getCurrentLogText();
+    logArea.innerHTML = "";
+
+    const wrapper = document.createElement("div");
+    wrapper.className = "log-entry-inline";
+    wrapper.style.display = "inline";
+    wrapper.style.wordBreak = "break-all";
+
+    for (let i = 0; i < fullText.length; i++) {
+        const span = document.createElement("span");
+        span.textContent = fullText[i];
+        span.className = "char";
+
+        // 音声読み上げ確認モードだけ赤色表示
+        if (
+            window.currentLogMode === "readingCheck" &&
+            window.currentReadingRange &&
+            i >= window.currentReadingRange.start &&
+            i < window.currentReadingRange.end
+        ) {
+            span.classList.add("read");
+        }
+
+        wrapper.appendChild(span);
+    }
+
+    logArea.appendChild(wrapper);
+    logArea.scrollTop = logArea.scrollHeight;
+};
 
 document.addEventListener('DOMContentLoaded', async () => {
     const textarea = document.getElementById("Chat");
     const logArea = document.getElementById("logArea");
     const voiceType = document.getElementById("voiceType");
     const video = document.getElementById("video"); // index.htmlのvideo要素
+    const readingCheckModeBtn = document.getElementById("readingCheckModeBtn");
+    const speechLogModeBtn = document.getElementById("speechLogModeBtn");
 
+    if (readingCheckModeBtn && speechLogModeBtn) {
+        readingCheckModeBtn.addEventListener("click", () => {
+        window.currentLogMode = "readingCheck";
+        readingCheckModeBtn.classList.add("active");
+        speechLogModeBtn.classList.remove("active");
+        window.renderSharedLog();
+    });
+
+    speechLogModeBtn.addEventListener("click", () => {
+        window.currentLogMode = "speechLog";
+
+        // 発言ログモードでは赤色範囲を無効化
+        window.currentReadingRange = null;
+
+        speechLogModeBtn.classList.add("active");
+        readingCheckModeBtn.classList.remove("active");
+        window.renderSharedLog();
+    });
+    }
     let lastEnterTime = 0;
     window.currentSpeak = null;
     window.currentTTSModule = null;
