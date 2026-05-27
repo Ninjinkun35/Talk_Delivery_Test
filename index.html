@@ -21,13 +21,21 @@
             <div class="main-container">
                 <!--左画面-->
                 <div class="left">
-                    <!--音声合成機能選択-->
-                    <label for="voiceType">音声合成機能:</label>
-                    <select id="voiceType">
-                        <option value="TTS-PunctuationMark">句読点（文章読みモード）</option>
-                        <option value="TTS-Kanjichange">漢字変換（単語読みモード）</option>
-                        <option value="TTS-1charTextReading">1文字（タイピング読みモード）</option>
-                    </select>
+                    <div class="control-row">
+                        <div class="voice-control">
+                            <!--音声合成機能選択-->
+                            <label for="voiceType">音声合成機能:</label>
+                            <select id="voiceType">
+                                <option value="TTS-PunctuationMark">句読点（文章読みモード）</option>
+                                <option value="TTS-Kanjichange">漢字変換（単語読みモード）</option>
+                                <option value="TTS-1charTextReading">1文字（タイピング読みモード）</option>
+                            </select>
+                        </div>
+                        <div class="font-control">
+                                <label for="fontSizeRange">テキストサイズ：<span id="fontSizeValue">72</span></label>
+                                <input type="range" id="fontSizeRange" min="50" max="100" value="72">
+                        </div>
+                    </div>
                     <!--発言入力画面-->
                     <div class="Contribution">
                         <textarea id="Chat" name="Chatinput" placeholder="ここにテキストを入力し、Enterキーを2回押すとテキストが削除"></textarea>
@@ -35,6 +43,7 @@
                     <!--読み上げテキスト表示領域-->
                     <!-- <div id="displayArea"></div> -->
                 </div>
+        
         
                 <!--右画面-->
                 <div class="right">

@@ -2,6 +2,18 @@
 // 2種類のログを常に保持
 // ==========================================
 
+document.addEventListener('DOMContentLoaded', () => {
+    const fontSizeRange = document.getElementById("fontSizeRange");
+    const fontSizeValue = document.getElementById("fontSizeValue");
+    const textarea = document.getElementById("Chat");
+
+    fontSizeRange.addEventListener("input", () => {
+        const size = fontSizeRange.value;
+        fontSizeValue.textContent = size;
+        textarea.style.fontSize = `${size}px`;
+    });
+});
+
 if (!window.readingCheckLogEntries) {
     window.readingCheckLogEntries = [];
 }
