@@ -174,6 +174,8 @@
     let composing = false;
     let hasSpokenCurrentComposition = false;
     let isSelectingCandidate = false;
+    let isSpaceConversion = false;
+    let isPredictionCandidate = false;
 
     function getJapaneseVoice() {
         const voices = window.speechSynthesis.getVoices();
@@ -282,6 +284,8 @@
     let compositionPrev = '';
 
     function handleCompositionStart() {
+        isSpaceConversion = false;
+        isPredictionCandidate = false;
         composing = true;
         compositionPrev = '';
         hasSpokenCurrentComposition = false;
@@ -289,7 +293,15 @@
     }
 
     const keydownHandler = (e) => {
-        if (e.code === 'Space' && composing) {
+        if (!composing) return;
+
+        if (e.code === 'Space') {
+            isSpaceConversion = true;
+            isSelectingCandidate = true;
+        }
+
+        if (e.code === 'ArrowDown' || e.code === 'ArrowUp') {
+            isPredictionCandidate = true;
             isSelectingCandidate = true;
         }
     };
@@ -297,7 +309,7 @@
     function handleCompositionUpdate(e) {
         const currentComposition = e.data || '';
 
-        // Spaceキー後、つまり漢字候補選択中は読まない
+        // 候補選択中は読まない
         if (isSelectingCandidate) {
             compositionPrev = currentComposition;
             return;
@@ -308,7 +320,7 @@
 
         if (!newText) return;
 
-        // 通常のかな入力だけ読む
+        // 通常入力だけ1字ずつ読む
         handleInputText(newText);
     }
 
@@ -357,19 +369,29 @@
         composing = false;
 
         const currentValue = textarea.value;
+
         const confirmedDiff = currentValue.slice(
             getCommonPrefixLength(lastConfirmedValue, currentValue)
         );
 
         if (confirmedDiff) {
+
+            // 発言ログモード
             if (typeof window.addSpeechLog === "function") {
                 window.addSpeechLog(confirmedDiff);
+            }
+
+            // 予測候補確定時だけ読む
+            if (isPredictionCandidate && !isSpaceConversion) {
+                handleInputText(confirmedDiff);
             }
         }
 
         lastConfirmedValue = currentValue;
         lastValue = currentValue;
-        hasSpokenCurrentComposition = false;
+
+        isSelectingCandidate = false;
+        compositionPrev = '';
         isSelectingCandidate = false;
     }
 
