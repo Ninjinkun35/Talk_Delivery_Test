@@ -110,14 +110,27 @@
 
         // 削除時は「現在の末尾」を新しい開始位置にする
         if (e.inputType && e.inputType.startsWith("delete")) {
-            lastSpokenIndex = currentValue.length;
+            // BackSpaceで未読テキスト内の改行などを消しただけなら、
+            // lastSpokenIndex は進めない。
+            // すでに読んだ位置より前まで削除された場合だけ同期する。
+            if (currentValue.length === 0) {
+                lastSpokenIndex = 0;
+            } else if (lastSpokenIndex > currentValue.length) {
+                lastSpokenIndex = currentValue.length;
+            }
+
             prevValue = currentValue;
             return;
         }
 
         // inputType が取れない環境向け
         if (currentValue.length < prevValue.length) {
-            resetReadingPositionIfNeeded(currentValue);
+            if (currentValue.length === 0) {
+                lastSpokenIndex = 0;
+            } else if (lastSpokenIndex > currentValue.length) {
+                lastSpokenIndex = currentValue.length;
+            }
+
             prevValue = currentValue;
             return;
         }
