@@ -178,13 +178,18 @@ document.addEventListener('DOMContentLoaded', async () => {
     // 4. 入力欄の制御 (Enter2回でクリア)
     // ==========================================
     textarea.addEventListener("keydown", (e) => {
-        if (e.key === "Enter") {
-            const now = Date.now();
-            if (now - lastEnterTime < 500) {
-                textarea.value = "";
-                console.log("Enter連打により入力をクリアしました");
-            }
-            lastEnterTime = now;
+        // if (e.key === "Enter") {
+        //     const now = Date.now();
+        //     if (now - lastEnterTime < 500) {
+        //         textarea.value = "";
+        //         console.log("Enter連打により入力をクリアしました");
+        //     }
+        //     lastEnterTime = now;
+        // }
+        if (e.key === "Enter" && e.shiftKey) {
+            e.preventDefault();
+
+            textarea.value = "";
         }
     });
 
