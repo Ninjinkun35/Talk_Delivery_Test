@@ -11,6 +11,11 @@
 
     let halfWidthBuffer = '';
 
+    function getTrailingHalfWidthAlphaNum(text) {
+        const match = text.match(/[a-zA-Z0-9]+$/);
+        return match ? match[0] : "";
+    }
+
     function syncSpeechLog() {
         window.speechLogEntries = [textarea.value];
 
@@ -47,6 +52,10 @@
 
     function isHalfWidthAlphaNum(ch) {
         return /^[a-zA-Z0-9]$/.test(ch);
+    }
+
+    function isNumericOnly(text) {
+        return /^[0-9]+$/.test(text);
     }
 
     function isHalfWidthSeparator(ch) {
@@ -88,7 +97,12 @@
         const text = halfWidthBuffer.trim();
         if (!text) return;
 
-        speak(text, 'en');
+        if (isNumericOnly(text)) {
+            speak(text, 'ja');
+        } else {
+            speak(text, 'en');
+        }
+
         halfWidthBuffer = '';
     }
 
@@ -96,7 +110,7 @@
         syncSpeechLog();
 
         if (currentValue.length < lastValue.length) {
-            halfWidthBuffer = '';
+            halfWidthBuffer = getTrailingHalfWidthAlphaNum(currentValue);
             lastValue = currentValue;
             return;
         }
@@ -217,6 +231,14 @@
         id: moduleId,
         speak,
         init,
-        cleanup
+        cleanup,
+        resetState() {
+            halfWidthBuffer = getTrailingHalfWidthAlphaNum(textarea.value);
+            lastValue = textarea.value;
+            compositionBaseValue = textarea.value;
+            composing = false;
+            spaceKeyPressedDuringComposition = false;
+            hasSpokenCurrentComposition = false;
+        }
     };
 })();

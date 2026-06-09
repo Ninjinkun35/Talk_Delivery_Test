@@ -193,6 +193,16 @@
         id: moduleId,
         speak: speakNewText,
         init,
-        cleanup
+        cleanup,
+        resetState() {
+            lastSpokenIndex = textarea ? textarea.value.length : 0;
+            prevValue = textarea ? textarea.value : "";
+            isComposing = false;
+
+            if (retryTimer) {
+                clearTimeout(retryTimer);
+                retryTimer = null;
+            }
+        }
     };
 })();

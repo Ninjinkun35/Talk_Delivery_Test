@@ -191,6 +191,14 @@ document.addEventListener('DOMContentLoaded', async () => {
             e.preventDefault();
 
             textarea.value = "";
+
+            if (window.ttsModule && typeof window.ttsModule.resetState === "function") {
+                window.ttsModule.resetState();
+            }
+
+            if (typeof window.clearReadingHighlight === "function") {
+                window.clearReadingHighlight();
+            }
         }
     });
 

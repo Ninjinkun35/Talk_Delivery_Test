@@ -415,5 +415,28 @@
         // sharedLogEntries はリセットしない
     }
 
-    window.ttsModule = { id: 'TTS-1charTextReading', speak, init, cleanup };
+    window.ttsModule = {
+        id: 'TTS-1charTextReading',
+        speak,
+        init,
+        cleanup,
+        resetState() {
+            queuedText = '';
+            composing = false;
+            isWaiting = false;
+            compositionPrev = '';
+            hasSpokenCurrentComposition = false;
+            isSelectingCandidate = false;
+            isSpaceConversion = false;
+            isPredictionCandidate = false;
+
+            if (waitTimer) {
+                clearTimeout(waitTimer);
+                waitTimer = null;
+            }
+
+            lastValue = textarea.value;
+            lastConfirmedValue = textarea.value;
+        }
+    };
 })();
