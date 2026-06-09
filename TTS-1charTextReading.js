@@ -421,22 +421,22 @@
         init,
         cleanup,
         resetState() {
-            queuedText = '';
+            // 読み上げ中キューは保持する
             composing = false;
-            isWaiting = false;
+
             compositionPrev = '';
+
             hasSpokenCurrentComposition = false;
             isSelectingCandidate = false;
             isSpaceConversion = false;
             isPredictionCandidate = false;
 
-            if (waitTimer) {
-                clearTimeout(waitTimer);
-                waitTimer = null;
-            }
+            lastValue = '';
+            lastConfirmedValue = '';
 
-            lastValue = textarea.value;
-            lastConfirmedValue = textarea.value;
+            // waitTimerは停止しない
+            // queuedTextも消さない
+            // isWaitingも変更しない
         }
     };
 })();
