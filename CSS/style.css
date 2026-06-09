@@ -225,6 +225,7 @@ body {
     position: relative;
 }
 
+
 .log-mode-buttons {
     position: absolute;
     top: 8px;
@@ -250,4 +251,45 @@ body {
 
 .log-section {
     padding-top: 55px;
+}
+
+/*相槌ボタン*/
+.reaction-buttons {
+    display: flex;
+    gap: 12px;
+    margin-top: 12px;
+    width: 100%;
+}
+
+.reaction-btn {
+    flex: 1;
+    height: 56px;
+    font-size: 1.6rem;
+    font-weight: bold;
+    border: none;
+    border-radius: 12px;
+    background: #333;
+    color: white;
+    cursor: pointer;
+}
+
+.reaction-btn:disabled {
+    cursor: not-allowed;
+    opacity: 0.8;
+}
+
+.reaction-btn.sending {
+    animation: sendingBlink 0.8s infinite;
+}
+
+@keyframes sendingBlink {
+    0% {
+        opacity: 1;
+    }
+    50% {
+        opacity: 0.35;
+    }
+    100% {
+        opacity: 1;
+    }
 }

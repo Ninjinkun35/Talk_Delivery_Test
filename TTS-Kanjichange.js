@@ -2,39 +2,81 @@
     const moduleId = 'TTS-Kanjichange';
     const textarea = document.getElementById('Chat');
 
-    let lastValue = '';          // 読み上げ（TTS）判定用の前回値
-    let lastConfirmedValue = ''; // ログ表示（確定）判定用の前回値
-    let englishBuffer = '';
-    let numberBuffer = '';
-    let spaceKeyPressed = false;
-    let hasSpokenCurrentComposition = false; // 現在の変換セッションで読み上げ済みか
+    let lastValue = '';
+    let composing = false;
 
+    let compositionBaseValue = '';
+    let spaceKeyPressedDuringComposition = false;
+    let hasSpokenCurrentComposition = false;
 
-    /**
-     * 音声読み上げ
-     */
+    let halfWidthBuffer = '';
+
+    function syncSpeechLog() {
+        window.speechLogEntries = [textarea.value];
+
+        if (typeof window.renderSharedLog === 'function') {
+            window.renderSharedLog();
+        }
+    }
+
+    function getInsertedText(prev, curr) {
+        let start = 0;
+
+        while (
+            start < prev.length &&
+            start < curr.length &&
+            prev[start] === curr[start]
+        ) {
+            start++;
+        }
+
+        let prevEnd = prev.length - 1;
+        let currEnd = curr.length - 1;
+
+        while (
+            prevEnd >= start &&
+            currEnd >= start &&
+            prev[prevEnd] === curr[currEnd]
+        ) {
+            prevEnd--;
+            currEnd--;
+        }
+
+        return curr.slice(start, currEnd + 1);
+    }
+
+    function isHalfWidthAlphaNum(ch) {
+        return /^[a-zA-Z0-9]$/.test(ch);
+    }
+
+    function isHalfWidthSeparator(ch) {
+        return /[\s,.!?;:]/.test(ch);
+    }
+
     function speak(text, lang = 'ja') {
-        if (!text) return;
+        if (!text || !text.trim()) return;
 
-        console.log('Kanjichange読み上げ:', text, `(言語: ${lang})`);
+        if (typeof window.addReadingCheckLog === 'function') {
+            window.addReadingCheckLog(text);
+        }
 
         const utterance = new SpeechSynthesisUtterance(text);
-        utterance.lang = (lang === 'en') ? 'en-US' : 'ja-JP';
+        utterance.lang = lang === 'en' ? 'en-US' : 'ja-JP';
 
         utterance.onstart = () => {
-            if (typeof window.setReadingHighlightByText === "function") {
+            if (typeof window.setReadingHighlightByText === 'function') {
                 window.setReadingHighlightByText(text);
             }
         };
 
         utterance.onend = () => {
-            if (typeof window.clearReadingHighlight === "function") {
+            if (typeof window.clearReadingHighlight === 'function') {
                 window.clearReadingHighlight();
             }
         };
 
         utterance.onerror = () => {
-            if (typeof window.clearReadingHighlight === "function") {
+            if (typeof window.clearReadingHighlight === 'function') {
                 window.clearReadingHighlight();
             }
         };
@@ -42,128 +84,139 @@
         speechSynthesis.speak(utterance);
     }
 
-    function getCommonPrefixLength(a, b) {
-        const len = Math.min(a.length, b.length);
-        let i = 0;
-        while (i < len && a[i] === b[i]) i++;
-        return i;
+    function flushHalfWidthBuffer() {
+        const text = halfWidthBuffer.trim();
+        if (!text) return;
+
+        speak(text, 'en');
+        halfWidthBuffer = '';
     }
 
-    /**
-     * 読み上げ用の差分抽出
-     */
-    function speakDiff(currentValue) {
+    function handleDirectInput(currentValue) {
+        syncSpeechLog();
+
         if (currentValue.length < lastValue.length) {
-            lastValue = currentValue; 
-            englishBuffer = ''; 
-            numberBuffer = '';
-            return; 
-        }
-
-        if (currentValue === lastValue) return;
-        const prefixLen = getCommonPrefixLength(lastValue, currentValue);
-        const newText = currentValue.slice(prefixLen);
-        if (!newText) { lastValue = currentValue; return; }
-
-        let japaneseChunk = '';
-        for (const ch of newText) {
-            const isHalfEnglish = (c) => /^[a-zA-Z]$/.test(c);
-            const isHalfNumber = (c) => /^[0-9]$/.test(c);
-            
-            if (isHalfEnglish(ch)) { englishBuffer += ch; continue; }
-            if (isHalfNumber(ch)) { numberBuffer += ch; continue; }
-            
-            if (englishBuffer) { speak(englishBuffer, 'en'); englishBuffer = ''; }
-            if (numberBuffer) { speak(numberBuffer, 'ja'); numberBuffer = ''; }
-            japaneseChunk += ch;
-        }
-        if (japaneseChunk) speak(japaneseChunk, 'ja');
-        lastValue = currentValue;
-    }
-
-    const keydownHandler = (e) => { 
-        if (e.code === 'Space') { 
-            spaceKeyPressed = true; 
-        }
-    };
-
-    const inputCompositionHandler = (e) => {
-        const currentValue = textarea.value;
-        if (e.type === 'compositionstart') {
-            hasSpokenCurrentComposition = false;
+            halfWidthBuffer = '';
+            lastValue = currentValue;
             return;
         }
 
-    if (e.type === 'compositionend') {
-        console.log('IME確定イベント検知');
+        const insertedText = getInsertedText(lastValue, currentValue);
 
-        const prefixLen = getCommonPrefixLength(lastConfirmedValue, currentValue);
-        const confirmedText = currentValue.slice(prefixLen);
+        for (const ch of insertedText) {
+            if (isHalfWidthAlphaNum(ch)) {
+                halfWidthBuffer += ch;
+            } else if (isHalfWidthSeparator(ch)) {
+                flushHalfWidthBuffer();
+            }
+        }
 
-        if (confirmedText) {
-            window.addSpeechLog(confirmedText);
+        lastValue = currentValue;
+    }
 
-            if (!hasSpokenCurrentComposition) {
-                window.addReadingCheckLog(confirmedText);
+    function handleCompositionStart() {
+        // 日本語入力開始時点で、直前の英字バッファを確定読み上げ
+        flushHalfWidthBuffer();
+
+        composing = true;
+        compositionBaseValue = textarea.value;
+        spaceKeyPressedDuringComposition = false;
+        hasSpokenCurrentComposition = false;
+
+        syncSpeechLog();
+    }
+
+    function handleCompositionUpdate() {
+        syncSpeechLog();
+
+        if (!spaceKeyPressedDuringComposition) return;
+        if (hasSpokenCurrentComposition) return;
+
+        const currentValue = textarea.value;
+        const convertedText = getInsertedText(compositionBaseValue, currentValue);
+
+        if (convertedText && convertedText.trim()) {
+            speak(convertedText, 'ja');
+            hasSpokenCurrentComposition = true;
+        }
+
+        spaceKeyPressedDuringComposition = false;
+        lastValue = currentValue;
+    }
+
+    function handleCompositionEnd() {
+        composing = false;
+
+        syncSpeechLog();
+
+        // IME確定時点では読み上げない
+        // Space変換時に読めなかったケースだけ救済する
+        if (!hasSpokenCurrentComposition) {
+            const currentValue = textarea.value;
+            const confirmedText = getInsertedText(compositionBaseValue, currentValue);
+
+            // ひらがなだけを確定した場合はここで読む
+            // 漢字変換済みなら通常は compositionupdate で読んでいる
+            if (confirmedText && confirmedText.trim()) {
                 speak(confirmedText, 'ja');
             }
         }
 
-        lastConfirmedValue = currentValue;
-        lastValue = currentValue;
+        lastValue = textarea.value;
+        compositionBaseValue = textarea.value;
+        spaceKeyPressedDuringComposition = false;
         hasSpokenCurrentComposition = false;
-        return;
     }
 
-        if (e.type === 'input') {
-            // 削除時
-            if (currentValue.length < lastValue.length) {
-                lastValue = currentValue;
-                lastConfirmedValue = currentValue;
-                englishBuffer = '';
-                numberBuffer = '';
-                return;
-            }
-
-            if (e.isComposing) {
-                // 漢字変換（スペースキー）中
-                if (spaceKeyPressed) {
-                    const prefixLen = getCommonPrefixLength(lastConfirmedValue, currentValue);
-                    const convertedText = currentValue.slice(prefixLen);
-
-                    if (convertedText && !hasSpokenCurrentComposition) {
-                        window.addReadingCheckLog(convertedText);
-                        speak(convertedText, 'ja');
-                        hasSpokenCurrentComposition = true;
-                    }
-
-                    lastValue = currentValue;
-                    spaceKeyPressed = false;
-                }
-            } else {
-                // 直接入力（半角英数など）
-                speakDiff(currentValue);
-                // 直接入力はEnterを押すまでログには出しません
-            }
+    function handleInput(e) {
+        if (e.isComposing || composing) {
+            syncSpeechLog();
+            return;
         }
-    };
+
+        handleDirectInput(textarea.value);
+    }
+
+    function handleKeydown(e) {
+        if (composing && e.code === 'Space') {
+            spaceKeyPressedDuringComposition = true;
+            return;
+        }
+
+        if (!composing && e.key === ' ') {
+            setTimeout(() => {
+                syncSpeechLog();
+                flushHalfWidthBuffer();
+                lastValue = textarea.value;
+            }, 0);
+        }
+    }
 
     function init() {
-        textarea.addEventListener('keydown', keydownHandler);
-        textarea.addEventListener('input', inputCompositionHandler);
-        textarea.addEventListener('compositionstart', inputCompositionHandler);
-        textarea.addEventListener('compositionend', inputCompositionHandler);
-        
+        textarea.addEventListener('keydown', handleKeydown);
+        textarea.addEventListener('input', handleInput);
+        textarea.addEventListener('compositionstart', handleCompositionStart);
+        textarea.addEventListener('compositionupdate', handleCompositionUpdate);
+        textarea.addEventListener('compositionend', handleCompositionEnd);
+
         lastValue = textarea.value;
-        lastConfirmedValue = textarea.value;
+        compositionBaseValue = textarea.value;
+
+        syncSpeechLog();
     }
 
     function cleanup() {
-        textarea.removeEventListener('keydown', keydownHandler);
-        textarea.removeEventListener('input', inputCompositionHandler);
-        textarea.removeEventListener('compositionstart', inputCompositionHandler);
-        textarea.removeEventListener('compositionend', inputCompositionHandler);
+        textarea.removeEventListener('keydown', handleKeydown);
+        textarea.removeEventListener('input', handleInput);
+        textarea.removeEventListener('compositionstart', handleCompositionStart);
+        textarea.removeEventListener('compositionupdate', handleCompositionUpdate);
+        textarea.removeEventListener('compositionend', handleCompositionEnd);
     }
 
-    window.ttsModule = { id: moduleId, speak, init, cleanup };
+    window.ttsModule = {
+        id: moduleId,
+        speak,
+        init,
+        cleanup
+    };
 })();

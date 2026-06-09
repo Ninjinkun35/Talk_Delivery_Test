@@ -50,7 +50,13 @@
                     <!--カメラ起動-->
                     <div class="Camera">
                         <video id="video" playsinline></video>
-                    </div>        
+                    </div>
+                    <!--相槌ボタン-->
+                    <!-- <div class="reaction-buttons">
+                        <button class="reaction-btn" data-text="たしかに">確かに</button>
+                        <button class="reaction-btn" data-text="そうですね">そうですね</button>
+                        <button class="reaction-btn" data-text="なるほど">なるほど</button>
+                    </div>         -->
                     <!-- <div>
                         <div id="ModeDisplay">通知音モード</div>
                     </div> -->
@@ -77,6 +83,8 @@
             </div>
     </div>
 
+        <script src="https://cdn.jsdelivr.net/npm/@mediapipe/hands/hands.js"></script>
+        <script src="https://cdn.jsdelivr.net/npm/@mediapipe/camera_utils/camera_utils.js"></script>
         <script src="main.js"></script>
         <script src="scale-manager.js"></script>
     </body>

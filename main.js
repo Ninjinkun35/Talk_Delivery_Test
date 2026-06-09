@@ -107,6 +107,7 @@ document.addEventListener('DOMContentLoaded', async () => {
     const video = document.getElementById("video"); // index.htmlのvideo要素
     const readingCheckModeBtn = document.getElementById("readingCheckModeBtn");
     const speechLogModeBtn = document.getElementById("speechLogModeBtn");
+    const reactionButtons = document.querySelectorAll(".reaction-btn");
 
     if (readingCheckModeBtn && speechLogModeBtn) {
         readingCheckModeBtn.addEventListener("click", () => {
@@ -240,4 +241,36 @@ document.addEventListener('DOMContentLoaded', async () => {
             script.onerror = (e) => reject(e);
         });
     }
+    
+    // ↓相槌ボタンのイベントリスナー↓
+    reactionButtons.forEach((button) => {
+        button.addEventListener("click", () => {
+            const text = button.dataset.text;
+            if (!text) return;
+
+            const originalText = button.textContent;
+
+            button.disabled = true;
+            button.classList.add("sending");
+            button.textContent = "送信中…";
+
+            const utterance = new SpeechSynthesisUtterance(text);
+            utterance.lang = "ja-JP";
+
+            utterance.onend = () => {
+                button.disabled = false;
+                button.classList.remove("sending");
+                button.textContent = originalText;
+            };
+
+            utterance.onerror = () => {
+                button.disabled = false;
+                button.classList.remove("sending");
+                button.textContent = originalText;
+            };
+
+            speechSynthesis.speak(utterance);
+        });
+    });
+    // ↑相槌ボタンのイベントリスナー↑
 });
