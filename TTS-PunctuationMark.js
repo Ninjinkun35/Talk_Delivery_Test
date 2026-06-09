@@ -8,7 +8,7 @@
     let prevValue = "";
     let retryTimer = null;
 
-    const punctuationPattern = /[,。、.，．]/;
+    const punctuationPattern = /[,。、.，．！？!?]/;
 
     function renderLogEntries() {
         if (typeof window.renderSharedLog === "function") {
