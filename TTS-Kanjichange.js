@@ -17,7 +17,7 @@
     }
 
     function syncSpeechLog() {
-        window.speechLogEntries = [textarea.value];
+        // window.speechLogEntries = [textarea.value];
 
         if (typeof window.renderSharedLog === 'function') {
             window.renderSharedLog();
@@ -107,7 +107,7 @@
     }
 
     function handleDirectInput(currentValue) {
-        syncSpeechLog();
+        // syncSpeechLog();
 
         if (currentValue.length < lastValue.length) {
             halfWidthBuffer = getTrailingHalfWidthAlphaNum(currentValue);
@@ -116,6 +116,10 @@
         }
 
         const insertedText = getInsertedText(lastValue, currentValue);
+
+        if (insertedText && typeof window.addSpeechLog === 'function') {
+            window.addSpeechLog(insertedText);
+        }
 
         for (const ch of insertedText) {
             if (isHalfWidthAlphaNum(ch)) {
@@ -162,6 +166,16 @@
         composing = false;
 
         syncSpeechLog();
+
+         const currentValue = textarea.value;
+         const confirmedText = getInsertedText(compositionBaseValue, currentValue);
+
+        if (confirmedText && confirmedText.trim()) {
+            // 発言ログモード用：1文字方式と同じく追記する
+            if (typeof window.addSpeechLog === 'function') {
+                window.addSpeechLog(confirmedText);
+            }
+        }
 
         // IME確定時点では読み上げない
         // Space変換時に読めなかったケースだけ救済する
