@@ -186,8 +186,19 @@
      * 音声読み上げの実行
      */
     function speak(text) {
-        text = text.replace(/[^\w\s\u3040-\u309F\u30A0-\u30FF\u4E00-\u9FFF$%&]/g, '');
-        if (!text) return;
+        text = text.replace(/[^\w\s\u3040-\u309F\u30A0-\u30FF\u4E00-\u9FFF０-９$%&]/g, '');
+
+        if (!text) {
+            isSpeaking = false;
+            isWaiting = false;
+
+            if (waitTimer) {
+                clearTimeout(waitTimer);
+                waitTimer = null;
+            }
+
+            return;
+        }
 
         console.log('1charTextReading読み上げ開始:', text);
 
@@ -218,7 +229,13 @@
                 queuedText = '';
                 speak(nextText);
             } else {
+                // キューが空なら、次の入力で新しく待機タイマーを開始できるようにする
                 isWaiting = false;
+
+                if (waitTimer) {
+                    clearTimeout(waitTimer);
+                    waitTimer = null;
+                }
             }
         };
 
@@ -238,10 +255,16 @@
      * 入力されたテキストをキューに振り分けるフロー
      */
     function handleInputText(text) {
+
+        if (!isSpeaking && isWaiting && !waitTimer) {
+            isWaiting = false;
+        }
         // ひらがな・カタカナ・英数字のみを抽出
         let validChars = "";
         for (let ch of text) {
-            if (/[\u3040-\u309F\u30A0-\u30FF\u4E00-\u9FFF\w]/.test(ch)) {
+            if (
+                /[\u3040-\u309F\u30A0-\u30FF\u4E00-\u9FFFA-Za-z0-9０-９]/.test(ch)
+            ) {
                 validChars += ch;
             }
         }
@@ -258,9 +281,10 @@
 
             // 指定時間待ってから読み上げを開始する
             waitTimer = setTimeout(() => {
+                waitTimer = null;
+
                 const textToSpeak = queuedText;
                 queuedText = '';
-                // 待機フラグは speak の onend でキューが空になった時に下ろすのでここではそのまま
                 speak(textToSpeak);
             }, WAIT_TIME);
         }
